@@ -1,0 +1,90 @@
+This set of files has been used to time conjugated gradient method using 
+various hardware architecture.
+
+Conjugate gardient method takes as input 2D array A, constatnt 1D vector B and starting 1D vector X0. The goal is to iteratively solve equation:
+AX=B for X
+Matrix A should be positive definite. 
+
+A) ***** genConjData.py *****
+Python code is used to generate  set of matrices {A,B,X} in the following order.
+a) a square matrix M[N*N] is filled with random values,
+b) matrix A is cmputed as A=M * M.transposed
+c) vector X (the solution) is  filled with random valuess
+d) vector B is computed as B=AX
+ 
+For reliable reprodicibility the set of matrices {A,B,X} are generated 
+once by the python code 'genConjData.py' and saved in binary form in 
+a  directory  definded by the variable
+pathOut="dataX"
+User needs to define it and match its location to expected location by the GPU code.
+This python code can produce multiple sets of {A,B,X} , depending on the variable 
+nSol=1
+To produce set {A,B,X} with dimension N=1024 one should do the following:
+python genConjData.py -d 1024
+
+Note  for N=16K the size of matrix A is 1GB and it may take an hour to produce it.
+
+
+B)****** GPU code ******
+The main CPU+GPU code is build out of:
+conjGradVer5.cu, cuTimer.cu+.h by the Makefile. 
+It is assumed user has installed CUDA SDK and all this code is in a subdirectory  in the project/ area.
+The executable shows up in  .../bin/..../release/ direcotry together with all binaries.  
+
+The path to input {A,B,X} arrays is defined by the variable:
+  char *pathIn="./dataX/";
+Make sure it matches true data locaton.
+
+Alos this .cu selects 2nd GPU attached to host. You can change it be editting the line:
+ int dev=1;
+
+One can  execute conjugate gradient code in one of the 4 modes:
+CPU, BLAS(CPU), CPU+CUBLAS(GPU), or CUBLAS(GPU) by specifying 'method' to be 1,2,3, or 4, respectively.
+The dimension of array is the 1st argument 'size'. One can solve multiple set of different problems {A,B,X} of the same dimesion by setting nTask appropritely. Note, one should produce multiple problems in python code apropriately. 
+
+./janConjGrad  [size]  [method] [nTask] 
+
+E.g. to run it on 256x256 A-matrix with CUBLAS , 1 time, execute:
+ ../../bin/linux/release/janConjGrad 256 4 1
+
+and you will see :
+....
+size=256 method=CUBLAS  nTask=1
+method,  size, traial, Tmem(ms), Tmath(ms), lastEps,...
+#CUBLAS,  256,    0,    0.053,    106.586,   0.190, ...
+....
+
+For your convenience subdirectory dataA/ with 256x256 matrix is saved in the repository.
+
+B.1)---------
+This one line contains the following information:
+The output of the program contains several lines of which one starting with '#' contins summary of task execution in CSV-format , very handy for further processing.
+
+---------
+method,  size, traial,Tmem(ms),Tmath(ms),lastEps,lastNiter,nCycle,devivce, globmem(GB)
+BLAS, 2,    0,    0.000,   0.001,  0.000,  2, 10000, Tesla C1060, 4.0
+CPU, 2,    0,    0.000,   0.000,  0.000,  2, 10000, Tesla C1060, 4.0
+CPU+CUBLAS, 2,    0,    0.011,   0.154,  0.000,  2, 10000, Tesla C1060, 4.0
+CUBLAS, 2,    0,    0.010,   0.464,  0.000,  2, 10000, Tesla C1060, 4.0
+.....
+----------
+
+
+C)********* reference CPU computation using lapack
+For the reference a stand alone python code is used to produce problem {A,B,X} for arbitrary dimension N in fly and solve it using  linalg.lstsq(A,B)
+The code  genSolvLinEq.py outputs timed results in identical format as CUDA code mentioned in previous section.
+
+
+D)********** Results of computation ********
+Summary of timing measurements with Tesla card using all 5 methods and array saize from 2 to 16K  are collected in this CVS-formated ascii file.
+  resultTesla.csv
+
+One can display those results with the python macro:
+python  plotTiming2.py
+
+
+E)*********** Auxiliary code
+The python macro autoJob.py can be used to:
+- produce set of input matrices {A,B,X} with various dimensions
+- run CUDA program solving all of the above
+- run python macro   linalg.lstsq(A,B)
